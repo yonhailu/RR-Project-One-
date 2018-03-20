@@ -1,0 +1,140 @@
+---
+title: "RR-ProjectOne"
+author: "Yon Hai"
+date: "March 19, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading and preprocessing the data
+
+
+```{r, results="hide"}
+dir <- "C:/Users/Yonathan/Desktop/Coursera/data"
+setwd(dir)
+
+## packages 
+ 
+library(ggplot2)
+library(plyr)
+library(lattice)
+library(dplyr)
+
+activity <- read.csv("activity.csv")
+
+```
+
+```{r}
+names(activity)
+str(activity)
+View(activity)
+
+summary(activity)
+```
+
+Transform factors into date format 
+
+```{r}
+activity$date <- as.POSIXct(activity$date, format="%Y-%m-%d")
+```
+
+### Total number of steps tacken each day 
+
+We can create a collapsed dataset of aggrgated number of steps tacken per day 
+```{r}
+totalsteps <- with(activity, aggregate(steps, by = list(date), FUN = sum, na.rm = TRUE))
+colnames(totalsteps) <- c("Date", "Steps")
+```
+
+## Histogram of the total number of steps taken each day
+
+
+```{r}
+hist(totalsteps$Steps, breaks=5, xlab="Steps", main = "Total Steps per Day", col = "blue")
+```
+
+## Mean and median number of steps taken each day
+
+Mean 
+
+```{r}
+
+mean(totalsteps$Steps)
+round (mean(totalsteps$Steps), digits = 0) 
+```
+
+Median 
+```{r}
+median(totalsteps$Steps)
+```
+ 
+
+##Average number of steps taken per interval 
+
+```{r}
+averageinterval <- with(activity, aggregate(steps, by = list(interval), FUN = mean, na.rm = TRUE))
+colnames(averageinterval) <- c("interval", "meansteps")
+```
+
+##Time series plot of the average number of steps taken per interval 
+```{r}
+p <- ggplot(averageinterval, aes(x=interval, y=meansteps), xlab = "Interval", ylab="Average Daily Steps")
+p + geom_line()+xlab("Interval")+ylab("Average Daily Steps")+ggtitle("Average Daily Steps per Interval")
+```
+
+## Imputation 
+
+Total number of missing values 
+```{r}
+sum(is.na(activity$steps))
+```
+We can choose the values to impute missing data. This could be mean and median of the day or the interval. For the purpose of this project, I will take the mean of the interval to fill in the NA values  
+
+```{r}
+
+imputedsteps <- averageinterval$meansteps[match(activity$interval, averageinterval$interval)]
+# create a new dataset, Always better to keep the orginal one
+activity_imputed <- transform(activity, steps = ifelse(is.na(activity$steps), yes = imputedsteps, no = activity$steps))
+
+totalsteps_imputed <- aggregate(steps ~ date, activity_imputed, sum)
+names(totalsteps_imputed) <- c("date", "steps")
+```
+Now we can check the number of missing values 
+
+sum(is.na(activity_imputed$steps))
+
+
+## graph with the imputed ones 
+```{r}
+hist(totalsteps_imputed$steps, col = "red", xlab = "Steps", ylim = c(0,30), main = "Total number of steps taken each day", breaks = 5)
+hist(totalsteps$Steps, col = "green", xlab = "Steps", ylim = c(0,30), main = "Total number of steps taken each day", breaks = 5, add=T)
+legend("topright", c("Imputed Data", "Original Data"), fill=c("red", "green"))
+```
+
+## Differences in Activity between weekdays and weekends 
+
+```{r}
+activity$date <- as.Date(strptime(activity$date, format="%Y-%m-%d"))
+activity$datetype <- sapply(activity$date, function(x) {
+    if (weekdays(x) == "Saturday" | weekdays(x) =="Sunday") 
+    {y <- "Weekend"} else 
+    {y <- "Weekday"}
+    y
+})
+```
+
+## Plot the difference 
+
+```{r}
+activity_by_date <- aggregate(steps~interval + datetype, activity, mean, na.rm = TRUE)
+plot<- ggplot(activity_by_date, aes(x = interval , y = steps, color = datetype)) +
+    geom_line() +
+    labs(title = "Average daily steps by type of date", x = "Interval", y = "Average number of steps") +
+    facet_wrap(~datetype, ncol = 1, nrow=2)
+print(plot)
+```
+
+
